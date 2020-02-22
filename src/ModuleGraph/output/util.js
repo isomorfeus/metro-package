@@ -58,32 +58,6 @@ function _defineProperty(obj, key, value) {
   return obj;
 }
 
-function _toConsumableArray(arr) {
-  return (
-    _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread()
-  );
-}
-
-function _nonIterableSpread() {
-  throw new TypeError("Invalid attempt to spread non-iterable instance");
-}
-
-function _iterableToArray(iter) {
-  if (
-    Symbol.iterator in Object(iter) ||
-    Object.prototype.toString.call(iter) === "[object Arguments]"
-  )
-    return Array.from(iter);
-}
-
-function _arrayWithoutHoles(arr) {
-  if (Array.isArray(arr)) {
-    for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++)
-      arr2[i] = arr[i];
-    return arr2;
-  }
-}
-
 const addParamsToDefineCall = require("../../lib/addParamsToDefineCall");
 
 const generate = require("../worker/generate");
@@ -92,13 +66,10 @@ const mergeSourceMaps = require("../worker/mergeSourceMaps");
 
 const reverseDependencyMapReferences = require("./reverse-dependency-map-references");
 
-const virtualModule = require("../module").virtual; // flowlint-next-line untyped-import:off
+const virtualModule = require("../module").virtual;
 
-const _require = require("metro-react-native-babel-preset"),
-  passthroughSyntaxPlugins = _require.passthroughSyntaxPlugins;
-
-const _require2 = require("@babel/core"),
-  transformSync = _require2.transformSync;
+const _require = require("@babel/core"),
+  transformSync = _require.transformSync;
 
 // Transformed modules have the form
 //   __d(function(require, module, global, exports, dependencyMap) {
@@ -143,14 +114,14 @@ function inlineModuleIds(module, idForPath) {
       babelrc: false,
       code: false,
       configFile: false,
-      plugins: [].concat(_toConsumableArray(passthroughSyntaxPlugins), [
+      plugins: [
         [
           reverseDependencyMapReferences,
           {
             dependencyIds
           }
         ]
-      ])
+      ]
     }),
     ast = _transformSync.ast;
 

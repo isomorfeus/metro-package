@@ -121,8 +121,6 @@ function _asyncToGenerator(fn) {
 
 const path = require("path");
 
-const baseIgnoredInlineRequires = ["React", "react", "react-native"];
-
 function calcTransformerOptions(_x, _x2, _x3, _x4, _x5) {
   return _calcTransformerOptions.apply(this, arguments);
 }
@@ -199,8 +197,6 @@ function _calcTransformerOptions() {
       experimentalImportSupport: transform.experimentalImportSupport || false,
       unstable_disableES6Transforms:
         transform.unstable_disableES6Transforms || false,
-      nonInlinedRequires:
-        transform.nonInlinedRequires || baseIgnoredInlineRequires,
       type: "module"
     });
   });

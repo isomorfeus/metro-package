@@ -74,21 +74,17 @@ class Bundler {
   }
 
   getDependencyGraph() {
-    var _this2 = this;
-
-    return _asyncToGenerator(function*() {
-      return yield _this2._depGraphPromise;
-    })();
+    return this._depGraphPromise;
   }
 
   transformFile(filePath, transformOptions) {
-    var _this3 = this;
+    var _this2 = this;
 
     return _asyncToGenerator(function*() {
       // We need to be sure that the DependencyGraph has been initialized.
       // TODO: Remove this ugly hack!
-      yield _this3._depGraphPromise;
-      return _this3._transformer.transformFile(filePath, transformOptions);
+      yield _this2._depGraphPromise;
+      return _this2._transformer.transformFile(filePath, transformOptions);
     })();
   }
 }

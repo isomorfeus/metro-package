@@ -293,27 +293,7 @@ function importExportPlugin(_ref) {
             })
           );
         } else {
-          let sharedModuleImport = null;
-
-          if (
-            specifiers.filter(
-              s =>
-                s.node.type === "ImportSpecifier" &&
-                s.get("imported").node.name !== "default"
-            ).length > 1
-          ) {
-            sharedModuleImport = path.scope.generateUidIdentifierBasedOnNode(
-              file
-            );
-            path.scope.push({
-              id: sharedModuleImport,
-              init: t.callExpression(t.identifier("require"), [
-                resolvePath(file, state.opts.resolve)
-              ])
-            });
-          }
-
-          specifiers.forEach(s => {
+          path.get("specifiers").forEach(s => {
             const imported = s.get("imported").node;
             const local = s.get("local").node;
 
@@ -347,11 +327,6 @@ function importExportPlugin(_ref) {
                       LOCAL: local
                     })
                   );
-                } else if (sharedModuleImport != null) {
-                  path.scope.push({
-                    id: local,
-                    init: t.memberExpression(sharedModuleImport, imported)
-                  });
                 } else {
                   anchor.insertBefore(
                     importNamedTemplate({

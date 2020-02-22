@@ -182,7 +182,6 @@ class Transformer {
         hot = transformerOptions.hot,
         inlinePlatform = transformerOptions.inlinePlatform,
         inlineRequires = transformerOptions.inlineRequires,
-        nonInlinedRequires = transformerOptions.nonInlinedRequires,
         minify = transformerOptions.minify,
         unstable_disableES6Transforms =
           transformerOptions.unstable_disableES6Transforms,
@@ -195,7 +194,6 @@ class Transformer {
           "hot",
           "inlinePlatform",
           "inlineRequires",
-          "nonInlinedRequires",
           "minify",
           "unstable_disableES6Transforms",
           "platform",
@@ -221,7 +219,6 @@ class Transformer {
         hot,
         inlinePlatform,
         inlineRequires,
-        nonInlinedRequires,
         minify,
         unstable_disableES6Transforms,
         platform,

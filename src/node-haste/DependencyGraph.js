@@ -9,32 +9,6 @@
  */
 "use strict";
 
-function _toConsumableArray(arr) {
-  return (
-    _arrayWithoutHoles(arr) || _iterableToArray(arr) || _nonIterableSpread()
-  );
-}
-
-function _nonIterableSpread() {
-  throw new TypeError("Invalid attempt to spread non-iterable instance");
-}
-
-function _iterableToArray(iter) {
-  if (
-    Symbol.iterator in Object(iter) ||
-    Object.prototype.toString.call(iter) === "[object Arguments]"
-  )
-    return Array.from(iter);
-}
-
-function _arrayWithoutHoles(arr) {
-  if (Array.isArray(arr)) {
-    for (var i = 0, arr2 = new Array(arr.length); i < arr.length; i++)
-      arr2[i] = arr[i];
-    return arr2;
-  }
-}
-
 function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
   try {
     var info = gen[key](arg);
@@ -81,23 +55,17 @@ function _defineProperty(obj, key, value) {
   return obj;
 }
 
-const _require = require("metro-core"),
-  AmbiguousModuleResolutionError = _require.AmbiguousModuleResolutionError;
+const AssetResolutionCache = require("./AssetResolutionCache");
 
-const DuplicateHasteCandidatesError = require("jest-haste-map").ModuleMap
-  .DuplicateHasteCandidatesError;
-
-const _require2 = require("metro-resolver"),
-  InvalidPackageError = _require2.InvalidPackageError;
-
-const _require3 = require("metro-core"),
-  PackageResolutionError = _require3.PackageResolutionError;
+const DependencyGraphHelpers = require("./DependencyGraph/DependencyGraphHelpers");
 
 const JestHasteMap = require("jest-haste-map");
 
 const Module = require("./Module");
 
 const ModuleCache = require("./ModuleCache");
+
+const ResolutionRequest = require("./DependencyGraph/ResolutionRequest");
 
 const ci = require("ci-info");
 
@@ -107,30 +75,19 @@ const fs = require("fs");
 
 const path = require("path");
 
-const _require4 = require("./DependencyGraph/ModuleResolution"),
-  ModuleResolver = _require4.ModuleResolver;
+const _require = require("./DependencyGraph/ModuleResolution"),
+  ModuleResolver = _require.ModuleResolver;
 
-const _require5 = require("events"),
-  EventEmitter = _require5.EventEmitter;
+const _require2 = require("events"),
+  EventEmitter = _require2.EventEmitter;
 
-const _require6 = require("metro-core"),
-  _require6$Logger = _require6.Logger,
-  createActionStartEntry = _require6$Logger.createActionStartEntry,
-  createActionEndEntry = _require6$Logger.createActionEndEntry,
-  log = _require6$Logger.log;
+const _require3 = require("metro-core"),
+  _require3$Logger = _require3.Logger,
+  createActionStartEntry = _require3$Logger.createActionStartEntry,
+  createActionEndEntry = _require3$Logger.createActionEndEntry,
+  log = _require3$Logger.log;
 
 const JEST_HASTE_MAP_CACHE_BREAKER = 4;
-
-function getOrCreate(map, field) {
-  let subMap = map.get(field);
-
-  if (!subMap) {
-    subMap = new Map();
-    map.set(field, subMap);
-  }
-
-  return subMap;
-}
 
 class DependencyGraph extends EventEmitter {
   constructor(_ref) {
@@ -145,16 +102,20 @@ class DependencyGraph extends EventEmitter {
     });
 
     this._config = config;
+    this._assetResolutionCache = new AssetResolutionCache({
+      assetExtensions: new Set(config.resolver.assetExts),
+      getDirFiles: dirPath => fs.readdirSync(dirPath),
+      platforms: new Set(config.resolver.platforms)
+    });
     this._haste = haste;
     this._hasteFS = initialHasteFS;
     this._moduleMap = initialModuleMap;
-    this._assetExtensions = new Set(
-      config.resolver.assetExts.map(asset => "." + asset)
-    );
+    this._helpers = new DependencyGraphHelpers({
+      assetExts: config.resolver.assetExts
+    });
 
     this._haste.on("change", this._onHasteChange.bind(this));
 
-    this._resolutionCache = new Map();
     this._moduleCache = this._createModuleCache();
 
     this._createModuleResolver();
@@ -169,6 +130,7 @@ class DependencyGraph extends EventEmitter {
       forceNodeFilesystemAPI: !config.resolver.useWatchman,
       hasteImplModulePath: config.resolver.hasteImplModulePath,
       ignorePattern: config.resolver.blacklistRE || / ^/,
+      mapper: config.resolver.virtualMapper,
       maxWorkers: config.maxWorkers,
       mocksPattern: "",
       name: "metro-" + JEST_HASTE_MAP_CACHE_BREAKER,
@@ -237,7 +199,9 @@ class DependencyGraph extends EventEmitter {
       hasteFS = _ref3.hasteFS,
       moduleMap = _ref3.moduleMap;
     this._hasteFS = hasteFS;
-    this._resolutionCache = new Map();
+
+    this._assetResolutionCache.clear();
+
     this._moduleMap = moduleMap;
     eventsQueue.forEach(_ref4 => {
       let type = _ref4.type,
@@ -261,25 +225,14 @@ class DependencyGraph extends EventEmitter {
       },
       doesFileExist: this._doesFileExist,
       extraNodeModules: this._config.resolver.extraNodeModules,
-      isAssetFile: file => this._assetExtensions.has(path.extname(file)),
+      isAssetFile: filePath => this._helpers.isAssetFile(filePath),
       mainFields: this._config.resolver.resolverMainFields,
       moduleCache: this._moduleCache,
       moduleMap: this._moduleMap,
       preferNativePlatform: true,
       projectRoot: this._config.projectRoot,
-      resolveAsset: (dirPath, assetName, extension) => {
-        const basePath = dirPath + path.sep + assetName;
-        const assets = [basePath + extension]
-          .concat(
-            _toConsumableArray(
-              this._config.resolver.assetResolutions.map(
-                resolution => basePath + "@" + resolution + "x" + extension
-              )
-            )
-          )
-          .filter(candidate => this._hasteFS.exists(candidate));
-        return assets.length ? assets : null;
-      },
+      resolveAsset: (dirPath, assetName, platform) =>
+        this._assetResolutionCache.resolve(dirPath, assetName, platform),
       resolveRequest: this._config.resolver.resolveRequest,
       sourceExts: this._config.resolver.sourceExts
     });
@@ -340,65 +293,14 @@ class DependencyGraph extends EventEmitter {
   }
 
   resolveDependency(from, to, platform) {
-    let _ref5 =
-        arguments.length > 3 && arguments[3] !== undefined
-          ? arguments[3]
-          : {
-              assumeFlatNodeModules: false
-            },
-      assumeFlatNodeModules = _ref5.assumeFlatNodeModules;
-
-    const isPath =
-      to.includes("/") || from.includes(path.sep + "node_modules" + path.sep);
-    const mapByDirectory = getOrCreate(
-      this._resolutionCache,
-      isPath ? path.dirname(from) : ""
-    );
-    let mapByPlatform = getOrCreate(mapByDirectory, to);
-    let modulePath = mapByPlatform.get(platform);
-
-    if (!modulePath) {
-      modulePath = this._moduleMap.getModule(to, platform, true);
-    }
-
-    if (!modulePath) {
-      try {
-        modulePath = this._moduleResolver.resolveDependency(
-          this._moduleCache.getModule(from),
-          to,
-          true,
-          platform
-        ).path; // If we cannot assume that only one node_modules folder exists in the project,
-        // we need to cache packages by directory instead of globally.
-
-        if (
-          !assumeFlatNodeModules &&
-          modulePath.includes(path.sep + "node_modules" + path.sep)
-        ) {
-          mapByPlatform = getOrCreate(
-            getOrCreate(this._resolutionCache, path.dirname(from)),
-            to
-          );
-        }
-      } catch (error) {
-        if (error instanceof DuplicateHasteCandidatesError) {
-          throw new AmbiguousModuleResolutionError(from, error);
-        }
-
-        if (error instanceof InvalidPackageError) {
-          throw new PackageResolutionError({
-            packageError: error,
-            originModulePath: from,
-            targetModuleName: to
-          });
-        }
-
-        throw error;
-      }
-    }
-
-    mapByPlatform.set(platform, modulePath);
-    return modulePath;
+    const req = new ResolutionRequest({
+      moduleResolver: this._moduleResolver,
+      entryPath: from,
+      helpers: this._helpers,
+      platform: platform || null,
+      moduleCache: this._moduleCache
+    });
+    return req.resolveDependency(this._moduleCache.getModule(from), to).path;
   }
 
   getHasteName(filePath) {

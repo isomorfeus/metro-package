@@ -236,7 +236,6 @@ class JsTransformer {
           // unfortunately remove it from the internal transformer, since this one
           // is used by other tooling, and this would affect it.
           inlineRequires: false,
-          nonInlinedRequires: [],
           projectRoot: _this._projectRoot,
           publicPath: _this._config.publicPath
         }),
@@ -293,12 +292,7 @@ class JsTransformer {
       }
 
       if (options.inlineRequires) {
-        plugins.push([
-          inlineRequiresPlugin,
-          _objectSpread({}, opts, {
-            ignoredRequires: options.nonInlinedRequires
-          })
-        ]);
+        plugins.push([inlineRequiresPlugin, opts]);
       }
 
       if (!options.dev) {

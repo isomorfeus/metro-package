@@ -190,14 +190,9 @@ function collectDependencies(ast, options) {
     },
 
     ImportDeclaration(path, state) {
-      const dep = getDependency(
-        state,
-        path.node.source.value,
-        {
-          prefetchOnly: false
-        },
-        path.node.loc
-      );
+      const dep = getDependency(state, path.node.source.value, {
+        prefetchOnly: false
+      });
       dep.data.isAsync = false;
     },
 
@@ -242,7 +237,7 @@ function processImportCall(path, state, options) {
     throw new InvalidRequireCallError(path);
   }
 
-  const dep = getDependency(state, name, options, path.node.loc);
+  const dep = getDependency(state, name, options);
 
   if (!options.prefetchOnly) {
     delete dep.data.isPrefetchOnly;
@@ -305,14 +300,9 @@ function processRequireCall(path, state) {
     return path;
   }
 
-  const dep = getDependency(
-    state,
-    name,
-    {
-      prefetchOnly: false
-    },
-    path.node.loc
-  );
+  const dep = getDependency(state, name, {
+    prefetchOnly: false
+  });
   dep.data.isAsync = false;
   delete dep.data.isPrefetchOnly;
 
@@ -331,15 +321,14 @@ function processRequireCall(path, state) {
   return path;
 }
 
-function getDependency(state, name, options, loc) {
+function getDependency(state, name, options) {
   let index = state.dependencyIndexes.get(name);
   let data = state.dependencyData.get(name);
 
   if (!data) {
     index = state.dependency++;
     data = {
-      isAsync: true,
-      locs: []
+      isAsync: true
     };
 
     if (options.prefetchOnly) {
@@ -348,10 +337,6 @@ function getDependency(state, name, options, loc) {
 
     state.dependencyIndexes.set(name, index);
     state.dependencyData.set(name, data);
-  }
-
-  if (loc != null) {
-    data.locs.push(loc);
   }
 
   return {
