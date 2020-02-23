@@ -101,8 +101,7 @@ class RubyTransformer {
                     let start_index = compiler_result.javascript.indexOf(Owl.module_start) + Owl.module_start.length;
                     let end_index = compiler_result.javascript.indexOf(']', start_index);
                     let opal_module_name = compiler_result.javascript.substr(start_index, end_index - start_index);
-                    let hmreloader = `
-module.hot.accept(() => {
+                    let hmreloader = `module.hot.accept(() => {
     if (typeof global.Opal !== 'undefined' && typeof Opal.require_table !== "undefined" && Opal.require_table['corelib/module']) {
         let already_loaded = false;
         if (typeof global.Opal.modules !== 'undefined') {
@@ -138,7 +137,8 @@ module.hot.accept(() => {
                         console.error(err.message);
                     }
                 } catch (err) {
-                    if ((new Date() - start) > 10000) {
+                    if ((new Date() - start) > 5000) {
+                        console.error(err.message);
                         console.log('${opal_module_name}: load timed out');
                     } else {
                         console.log('${opal_module_name}: deferring load');
@@ -150,6 +150,8 @@ module.hot.accept(() => {
         }
     }
 });
+
+module.exports = opal_code;
 `;
                     let result = [compiler_result.javascript, hmreloader].join("\n");
                     resolve(result);
