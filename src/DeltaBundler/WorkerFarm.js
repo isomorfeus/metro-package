@@ -90,6 +90,8 @@ function _asyncToGenerator(fn) {
   };
 }
 
+const chalk = require("chalk");
+
 const _require = require("metro-core"),
   Logger = _require.Logger;
 
@@ -163,7 +165,7 @@ class WorkerFarm {
   _makeFarm(workerPath, exposedMethods, numWorkers) {
     const env = _objectSpread({}, process.env, {
       // Force color to print syntax highlighted code frames.
-      FORCE_COLOR: 1
+      FORCE_COLOR: chalk.supportsColor ? 1 : 0
     });
 
     return new JestWorker(workerPath, {

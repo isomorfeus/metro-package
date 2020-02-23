@@ -67,8 +67,6 @@ const ModuleCache = require("./ModuleCache");
 
 const ResolutionRequest = require("./DependencyGraph/ResolutionRequest");
 
-const ci = require("ci-info");
-
 const crypto = require("crypto");
 
 const fs = require("fs");
@@ -121,7 +119,7 @@ class DependencyGraph extends EventEmitter {
     this._createModuleResolver();
   }
 
-  static _createHaste(config, watch) {
+  static _createHaste(config) {
     return new JestHasteMap({
       cacheDirectory: config.hasteMapCacheDirectory,
       computeDependencies: false,
@@ -141,11 +139,11 @@ class DependencyGraph extends EventEmitter {
       roots: config.watchFolders,
       throwOnModuleCollision: true,
       useWatchman: config.resolver.useWatchman,
-      watch: watch == null ? !ci.isCI : watch
+      watch: true
     });
   }
 
-  static load(config, options) {
+  static load(config) {
     return _asyncToGenerator(function*() {
       const initializingMetroLogEntry = log(
         createActionStartEntry("Initializing Metro")
@@ -154,10 +152,7 @@ class DependencyGraph extends EventEmitter {
         type: "dep_graph_loading"
       });
 
-      const haste = DependencyGraph._createHaste(
-        config,
-        options && options.watch
-      );
+      const haste = DependencyGraph._createHaste(config);
 
       const _ref2 = yield haste.build(),
         hasteFS = _ref2.hasteFS,

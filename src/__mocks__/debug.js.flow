@@ -7,7 +7,6 @@
  * @format
  * @flow strict
  */
-
 'use strict';
 
-module.exports = (): (() => void) => () => {};
+module.exports = () => () => {};

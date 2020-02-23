@@ -98,8 +98,6 @@ const MetroServer = require("./Server");
 
 const attachWebsocketServer = require("./lib/attachWebsocketServer");
 
-const fs = require("fs");
-
 const http = require("http");
 
 const https = require("https");
@@ -112,13 +110,16 @@ const makeServeCommand = require("./commands/serve");
 
 const outputBundle = require("./shared/output/bundle");
 
-const _require = require("metro-config"),
-  loadConfig = _require.loadConfig,
-  mergeConfig = _require.mergeConfig,
-  getDefaultConfig = _require.getDefaultConfig;
+const _require = require("fs-extra"),
+  readFile = _require.readFile;
 
-const _require2 = require("metro-inspector-proxy"),
-  InspectorProxy = _require2.InspectorProxy;
+const _require2 = require("metro-config"),
+  loadConfig = _require2.loadConfig,
+  mergeConfig = _require2.mergeConfig,
+  getDefaultConfig = _require2.getDefaultConfig;
+
+const _require3 = require("metro-inspector-proxy"),
+  InspectorProxy = _require3.InspectorProxy;
 
 function getConfig(_x) {
   return _getConfig.apply(this, arguments);
@@ -132,12 +133,12 @@ function _getConfig() {
   return _getConfig.apply(this, arguments);
 }
 
-function runMetro(_x2, _x3) {
+function runMetro(_x2) {
   return _runMetro.apply(this, arguments);
 }
 
 function _runMetro() {
-  _runMetro = _asyncToGenerator(function*(config, options) {
+  _runMetro = _asyncToGenerator(function*(config) {
     const mergedConfig = yield getConfig(config);
     mergedConfig.reporter.update({
       type: "initialize_started",
@@ -146,7 +147,7 @@ function _runMetro() {
       // breaking since it affects custom reporter API.
       projectRoots: mergedConfig.watchFolders
     });
-    return new MetroServer(mergedConfig, options);
+    return new MetroServer(mergedConfig);
   });
   return _runMetro.apply(this, arguments);
 }
@@ -190,7 +191,7 @@ exports.createConnectMiddleware =
       };
     });
 
-    return function(_x4) {
+    return function(_x3) {
       return _ref.apply(this, arguments);
     };
   })();
@@ -217,9 +218,34 @@ exports.runServer =
       const _ref4 = yield exports.createConnectMiddleware(config),
         attachHmrServer = _ref4.attachHmrServer,
         middleware = _ref4.middleware,
+        metroServer = _ref4.metroServer,
         end = _ref4.end;
 
       serverApp.use(middleware);
+
+      if (config.server.enableVisualizer) {
+        let initializeVisualizerMiddleware;
+
+        try {
+          // eslint-disable-next-line import/no-extraneous-dependencies
+          var _require4 = require("metro-visualizer");
+
+          initializeVisualizerMiddleware =
+            _require4.initializeVisualizerMiddleware;
+        } catch (e) {
+          console.warn(
+            "'config.server.enableVisualizer' is enabled but the 'metro-visualizer' package was not found - have you installed it?"
+          );
+        }
+
+        if (initializeVisualizerMiddleware) {
+          serverApp.use(
+            "/visualizer",
+            initializeVisualizerMiddleware(metroServer)
+          );
+        }
+      }
+
       let inspectorProxy = null;
 
       if (config.server.runInspectorProxy) {
@@ -228,15 +254,11 @@ exports.runServer =
 
       let httpServer;
 
-      if (
-        secure &&
-        typeof secureKey === "string" &&
-        typeof secureCert === "string"
-      ) {
+      if (secure) {
         httpServer = https.createServer(
           {
-            key: fs.readFileSync(secureKey),
-            cert: fs.readFileSync(secureCert)
+            key: yield readFile(secureKey),
+            cert: yield readFile(secureCert)
           },
           serverApp
         );
@@ -280,7 +302,7 @@ exports.runServer =
       });
     });
 
-    return function(_x5, _x6) {
+    return function(_x4, _x5) {
       return _ref2.apply(this, arguments);
     };
   })();
@@ -305,9 +327,7 @@ exports.runBuild =
         _ref6$sourceMap = _ref6.sourceMap,
         sourceMap = _ref6$sourceMap === void 0 ? false : _ref6$sourceMap,
         sourceMapUrl = _ref6.sourceMapUrl;
-      const metroServer = yield runMetro(config, {
-        watch: false
-      });
+      const metroServer = yield runMetro(config);
 
       try {
         const requestOptions = {
@@ -351,7 +371,7 @@ exports.runBuild =
       }
     });
 
-    return function(_x7, _x8) {
+    return function(_x6, _x7) {
       return _ref5.apply(this, arguments);
     };
   })();
@@ -394,7 +414,7 @@ exports.buildGraph =
       }
     });
 
-    return function(_x9, _x10) {
+    return function(_x8, _x9) {
       return _ref7.apply(this, arguments);
     };
   })();
@@ -440,4 +460,6 @@ exports.attachMetroCli = function(yargs) {
   }
 
   return yargs;
-};
+}; // The symbols below belong to the legacy API and should not be relied upon
+
+Object.assign(exports, require("./legacy"));
