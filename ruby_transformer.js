@@ -123,7 +123,7 @@ class RubyTransformer {
         Owl.socket_path = path.join(process.env.OWL_TMPDIR, 'owcs_socket');
         if (!node_fs.existsSync(Owl.socket_path)) {
             Owl.compile_server_starting = true;
-            console.log('---->  Opal Ruby Compile Server starting  <----');
+            // console.log('---->  Opal Ruby Compile Server starting  <----');
             Owl.load_paths_cache = path.join(process.env.OWL_TMPDIR, 'load_paths.json');
             let command_args = ["exec", "opal-webpack-compile-server", "start", os.cpus().length.toString(), "-l", Owl.load_paths_cache, "-s", Owl.socket_path];
 
