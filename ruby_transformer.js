@@ -9,6 +9,7 @@ const os = require('os');
 const path = require('path');
 const process = require('process');
 const JsTransformer = require("metro/src/JSTransformer/worker");
+const { loadConfig } = require("metro-config");
 
 // keep some global state
 let Owl = {
@@ -29,7 +30,9 @@ const default_options = {
     requireModules: null,
     dynamicRequireSeverity: null,
     compilerFlagsOn: null,
-    compilerFlagsOff: null
+    compilerFlagsOff: null,
+    memcached: null,
+    redis: null
 };
 
 function handle_exit() {
@@ -57,9 +60,6 @@ class RubyTransformer {
         this._projectRoot = projectRoot;
         this._config = config;
         this._upstreamTransfomer = new JsTransformer(projectRoot, config);
-        if (!Owl.options) {
-            Owl.options = this.initialize_options({});
-        }
     }
 
     async transform(filename, data, options) {
@@ -101,56 +101,57 @@ class RubyTransformer {
                     let start_index = compiler_result.javascript.indexOf(Owl.module_start) + Owl.module_start.length;
                     let end_index = compiler_result.javascript.indexOf(']', start_index);
                     let opal_module_name = compiler_result.javascript.substr(start_index, end_index - start_index);
-                    let hmreloader = `module.hot.accept(() => {
-    if (typeof global.Opal !== 'undefined' && typeof Opal.require_table !== "undefined" && Opal.require_table['corelib/module']) {
-        let already_loaded = false;
-        if (typeof global.Opal.modules !== 'undefined') {
-            if (typeof global.Opal.modules[${opal_module_name}] === 'function') {
-                already_loaded = true;
-            }
-        }
-        opal_code();
-        if (already_loaded) {
-            try {
-                if (Opal.require_table[${opal_module_name}]) {
-                    global.Opal.load.call(global.Opal, ${opal_module_name});
-                } else {
-                    global.Opal.require.call(global.Opal, ${opal_module_name});
+                    let hmreloader = `if (typeof module.hot !== 'undefined' && typeof module.hot.accept === 'function') {
+    module.hot.accept(() => {
+        if (typeof global.Opal !== 'undefined' && typeof Opal.require_table !== "undefined" && Opal.require_table['corelib/module']) {
+            let already_loaded = false;
+            if (typeof global.Opal.modules !== 'undefined') {
+                if (typeof global.Opal.modules[${opal_module_name}] === 'function') {
+                    already_loaded = true;
                 }
-                ${Owl.options.hmrHook}
-            } catch (err) {
-                console.error(err.message);
             }
-        } else {
-            var start = new Date();
-            var fun = function() {
+            opal_code();
+            if (already_loaded) {
                 try {
                     if (Opal.require_table[${opal_module_name}]) {
                         global.Opal.load.call(global.Opal, ${opal_module_name});
                     } else {
                         global.Opal.require.call(global.Opal, ${opal_module_name});
                     }
-                    console.log('${opal_module_name}: loaded');
-                    try {
-                        ${Owl.options.hmrHook}
-                    } catch (err) {
-                        console.error(err.message);
-                    }
+                    ${Owl.options.hmrHook}
                 } catch (err) {
-                    if ((new Date() - start) > 5000) {
-                        console.error(err.message);
-                        console.log('${opal_module_name}: load timed out');
-                    } else {
-                        console.log('${opal_module_name}: deferring load');
-                        setTimeout(fun, 100);
+                    console.error(err.message);
+                }
+            } else {
+                var start = new Date();
+                var fun = function() {
+                    try {
+                        if (Opal.require_table[${opal_module_name}]) {
+                            global.Opal.load.call(global.Opal, ${opal_module_name});
+                        } else {
+                            global.Opal.require.call(global.Opal, ${opal_module_name});
+                        }
+                        console.log('${opal_module_name}: loaded');
+                        try {
+                            ${Owl.options.hmrHook}
+                        } catch (err) {
+                            console.error(err.message);
+                        }
+                    } catch (err) {
+                        if ((new Date() - start) > 5000) {
+                            console.error(err.message);
+                            console.log('${opal_module_name}: load timed out');
+                        } else {
+                            console.log('${opal_module_name}: deferring load');
+                            setTimeout(fun, 100);
+                        }
                     }
                 }
+                fun();
             }
-            fun();
         }
-    }
-});
-
+    });
+}
 module.exports = opal_code;
 `;
                     let result = [compiler_result.javascript, hmreloader].join("\n");
@@ -176,10 +177,19 @@ module.exports = opal_code;
         Object.keys(default_options).forEach(
             (key) => { if (typeof options[key] === 'undefined') options[key] = default_options[key]; }
         );
+        if (options.memcached === true) { options.memcached = 'localhost:11211'; }
+        if (options.redis === true) { options.redis = 'redis://localhost:6379'; }
         return options;
     }
 
     async start_compile_server() {
+        if (!Owl.options) {
+            let metro_config = await loadConfig();
+            if (typeof metro_config.resolver.ruby_options === 'object') {
+                let options = metro_config.resolver.ruby_options;
+                Owl.options = this.initialize_options(options);
+            }
+        }
         Owl.socket_path = path.join(process.env.OWL_TMPDIR, 'owcs_socket');
         if (!node_fs.existsSync(Owl.socket_path)) {
             Owl.compile_server_starting = true;
@@ -188,6 +198,8 @@ module.exports = opal_code;
             let command_args = ["exec", "opal-webpack-compile-server", "start", os.cpus().length.toString(), "-l", Owl.load_paths_cache, "-s", Owl.socket_path];
 
             if (Owl.options.dynamicRequireSeverity) command_args.push('-d', Owl.options.dynamicRequireSeverity);
+            if (Owl.options.memcached) command_args.push('-m', Owl.options.memcached);
+            else if (Owl.options.redis) command_args.push('-e', Owl.options.redis);
 
             (Owl.options.includePaths || []).forEach((path) => command_args.push('-I', path));
             (Owl.options.requireModules || []).forEach((requiredModule) => command_args.push('-r', requiredModule));
