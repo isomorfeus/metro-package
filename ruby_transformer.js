@@ -24,6 +24,7 @@ let Owl = {
 };
 
 const default_options = {
+    hmr: false,
     hmrHook: '',
     sourceMap: false,
     includePaths: null,
@@ -98,10 +99,12 @@ class RubyTransformer {
                 } else {
                     // if (real_resource_path.startsWith(that.rootContext)) {
                     // search for ruby module name in compiled file
-                    let start_index = compiler_result.javascript.indexOf(Owl.module_start) + Owl.module_start.length;
-                    let end_index = compiler_result.javascript.indexOf(']', start_index);
-                    let opal_module_name = compiler_result.javascript.substr(start_index, end_index - start_index);
-                    let hmreloader = `if (typeof module.hot !== 'undefined' && typeof module.hot.accept === 'function') {
+                    let result;
+                    if (Owl.options.hmr) {
+                        let start_index = compiler_result.javascript.indexOf(Owl.module_start) + Owl.module_start.length;
+                        let end_index = compiler_result.javascript.indexOf(']', start_index);
+                        let opal_module_name = compiler_result.javascript.substr(start_index, end_index - start_index);
+                        let hmreloader = `if (typeof module.hot !== 'undefined' && typeof module.hot.accept === 'function') {
     module.hot.accept(() => {
         if (typeof global.Opal !== 'undefined' && typeof Opal.require_table !== "undefined" && Opal.require_table['corelib/module']) {
             let already_loaded = false;
@@ -154,7 +157,8 @@ class RubyTransformer {
 }
 module.exports = opal_code;
 `;
-                    let result = [compiler_result.javascript, hmreloader].join("\n");
+                        result = [compiler_result.javascript, hmreloader].join("\n");
+                    } else { result = compiler_result.javascript; }
                     resolve(result);
                 }
             });
